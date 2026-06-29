@@ -3,38 +3,69 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ERP Financiero Nube 2026</title>
+    <title>MODASHOP | ERP Financiero 2026</title>
     
+    <!-- Google Fonts: Nunito -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            magenta: '#EC008C',
+                            black: '#1A1A1A',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['"Nunito"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
     
     <!-- React y ReactDOM -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    
-    <!-- Babel para compilar JSX en el navegador -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     
     <!-- Recharts -->
     <script src="https://unpkg.com/react-is/umd/react-is.production.min.js"></script>
     <script src="https://unpkg.com/prop-types/prop-types.min.js"></script>
     <script src="https://unpkg.com/recharts@2.1.12/umd/Recharts.js"></script>
 
-    <!-- Firebase v8 (Versión estable para HTML sin servidor) -->
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <!-- Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- FIREBASE V11 (Módulos Nativos para evitar crasheos de Babel) -->
+    <script type="module">
+        import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Exportamos Firebase a Window para que React lo use de forma segura
+        window.FirebaseSDK = {
+            initializeApp, getApps, getApp, getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged, getFirestore, doc, setDoc, onSnapshot, serverTimestamp
+        };
+    </script>
 
     <style>
-        body { background-color: #f1f5f9; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+        body { background-color: #f1f5f9; font-family: 'Nunito', ui-sans-serif, system-ui, sans-serif; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         
         input:disabled { background-color: #f8fafc; color: #94a3b8; cursor: not-allowed; border-color: #e2e8f0; }
-        .tab-active { background-color: #2563eb; color: white; border-color: #2563eb; box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.2); }
+        
+        .tab-active { background-color: #EC008C; color: white; border-color: #EC008C; box-shadow: 0 4px 6px -1px rgba(236, 0, 140, 0.3); }
         .tab-inactive { background-color: white; color: #4b5563; border-color: #d1d5db; }
         .tab-inactive:hover { background-color: #f8fafc; border-color: #94a3b8; }
-        .tab-executive { background-color: #1e293b; color: white; border-color: #1e293b; }
+        .tab-executive { background-color: #1A1A1A; color: white; border-color: #1A1A1A; }
+        .tab-executive:hover { background-color: #000000; }
         .tab-daily { background-color: #10b981; color: white; border-color: #10b981; }
         
         .matrix-cell { min-width: 110px; }
@@ -55,10 +86,15 @@
 
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef } = React;
-        const { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip: RechartsTooltip, Legend, ResponsiveContainer, LineChart, Line, ComposedChart, AreaChart, Area, ReferenceLine, Cell, PieChart, Pie } = window.Recharts;
 
-        // --- ICONOS INLINE ---
+        // --- ICONOS INLINE MODASHOP ---
         const Icons = {
+            ModaShopHeart: ({size=40, className=""}) => (
+                <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
+                    <path d="M50 80 C 50 80, 10 50, 15 25 C 17 10, 35 5, 50 25" stroke="#EC008C" strokeWidth="12" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                    <path d="M50 25 C 65 5, 83 10, 85 25 C 87 50, 45 65, 45 85 C 45 95, 60 95, 65 85" stroke="#1A1A1A" strokeWidth="12" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                </svg>
+            ),
             Activity: ({size=24, className=""}) => <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>,
             Copy: ({size=24, className=""}) => <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>,
             AlertCircle: ({size=24, className=""}) => <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>,
@@ -105,7 +141,7 @@
         const MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
         const DAILY_MONTHS = ['Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
         const BRANCHES = ['Deposito', 'Local', 'Tendens', 'Chajari'];
-        const PIE_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'];
+        const PIE_COLORS = ['#EC008C', '#1A1A1A', '#64748b', '#cbd5e1', '#f472b6'];
 
         const EMPTY_BRANCHES = [
             { name: 'Deposito', venta: '', costo: '', gastosBase: '', gastoCEO: '', costosOcultos: '', rentabPct: 40 },
@@ -114,7 +150,6 @@
             { name: 'Chajari', venta: '', costo: '', gastosBase: '', gastoCEO: '', costosOcultos: '', rentabPct: 40 } 
         ];
 
-        // FUNCIONES SEGURAS DE MEMORIA
         const getSafeMonthlyData = (parsed) => {
             let valid = {};
             MONTHS.forEach(m => {
@@ -159,21 +194,20 @@
         };
 
         function App() {
-            const fileInputRef = useRef(null);
+            // 1. ESTADO DE CARGA SEGURO
+            const [isLibrariesLoaded, setIsLibrariesLoaded] = useState(false);
+            const [firebaseInstances, setFirebaseInstances] = useState(null);
             
-            // -- CONFIGURACIÓN DE FIREBASE DIRECTA EN EL COMPONENTE --
-            const cloudConfig = {
-                apiKey: "AIzaSyAcoZjUPF7g2mqR1RkNLpn9wrK-Y3PqPsM",
-                authDomain: "erpfinanciero.firebaseapp.com",
-                projectId: "erpfinanciero",
-                storageBucket: "erpfinanciero.firebasestorage.app",
-                messagingSenderId: "785364424617",
-                appId: "1:785364424617:web:4e105895aa972a46bb16b8"
-            };
-            
-            const [syncStatus, setSyncStatus] = useState('connecting');
-            const [dbRef, setDbRef] = useState(null);
+            // --- NUEVOS ESTADOS PARA LOGIN ---
+            const [isAuthenticated, setIsAuthenticated] = useState(false);
+            const [username, setUsername] = useState('');
+            const [password, setPassword] = useState('');
+            const [loginError, setLoginError] = useState(false);
 
+            const fileInputRef = useRef(null);
+            const [user, setUser] = useState(null);
+            const [syncStatus, setSyncStatus] = useState('connecting');
+            
             // -- ESTADOS DE DATOS --
             const [monthlyData, setMonthlyData] = useState(() => getSafeMonthlyData(null));
             const [dailySales, setDailySales] = useState(() => getSafeDailySales(null));
@@ -188,7 +222,75 @@
             const [isLoaded, setIsLoaded] = useState(false);
             const [modalInfo, setModalInfo] = useState(null);
 
-            // 1. INICIALIZACIÓN DE FIREBASE v8 Y LECTURA
+            // 2. INICIALIZAR LIBRERÍAS DE FORMA SEGURA (Previene pantalla en blanco)
+            useEffect(() => {
+                const checkLibs = setInterval(() => {
+                    if (window.Recharts && window.FirebaseSDK) {
+                        clearInterval(checkLibs);
+                        setIsLibrariesLoaded(true);
+                        
+                        try {
+                            const { initializeApp, getApps, getApp, getAuth, getFirestore } = window.FirebaseSDK;
+                            const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+                                apiKey: "AIzaSyAcoZjUPF7g2mqR1RkNLpn9wrK-Y3PqPsM",
+                                authDomain: "erpfinanciero.firebaseapp.com",
+                                projectId: "erpfinanciero",
+                                storageBucket: "erpfinanciero.firebasestorage.app",
+                                messagingSenderId: "785364424617",
+                                appId: "1:785364424617:web:4e105895aa972a46bb16b8"
+                            };
+                            const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+                            setFirebaseInstances({
+                                auth: getAuth(app),
+                                db: getFirestore(app)
+                            });
+                        } catch(e) {
+                            console.error("Error inicializando Firebase:", e);
+                        }
+                    }
+                }, 100);
+                return () => clearInterval(checkLibs);
+            }, []);
+
+            // FUNCION SEGURA PARA OBTENER EL DOCUMENTO
+            // Se arregló el error de 5 segmentos a 6 segmentos: Colección -> Documento -> Colección -> Documento
+            const getDocRef = () => {
+                if (!firebaseInstances) return null;
+                const { db } = firebaseInstances;
+                const { doc } = window.FirebaseSDK;
+                const appId = typeof __app_id !== 'undefined' ? __app_id : 'modashop-erp-local';
+                const isCanvas = typeof __firebase_config !== 'undefined';
+                
+                return isCanvas
+                    ? doc(db, 'artifacts', appId, 'public', 'data', 'erp_data', 'empresa_principal')
+                    : doc(db, 'erp_data', 'empresa_principal');
+            };
+
+            // 3. AUTENTICACIÓN
+            useEffect(() => {
+                if (!firebaseInstances) return;
+                const { auth } = firebaseInstances;
+                const { signInWithCustomToken, signInAnonymously, onAuthStateChanged } = window.FirebaseSDK;
+
+                const initAuth = async () => {
+                    try {
+                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                            await signInWithCustomToken(auth, __initial_auth_token);
+                        } else {
+                            await signInAnonymously(auth);
+                        }
+                    } catch (error) {
+                        console.error("Error de autenticación:", error);
+                        setIsLoaded(true);
+                    }
+                };
+                initAuth();
+
+                const unsubscribe = onAuthStateChanged(auth, setUser);
+                return () => unsubscribe();
+            }, [firebaseInstances]);
+
+            // 4. LECTURA DE DATOS
             useEffect(() => {
                 if (IS_CEO_MODE) {
                     if (CEO_DATA_SNAPSHOT?.monthly) {
@@ -202,30 +304,22 @@
                     return; 
                 }
 
-                // Iniciar Firebase sólo si no existe la app
-                if (!window.firebase.apps.length) {
-                    window.firebase.initializeApp(cloudConfig);
-                }
+                if (!user || !firebaseInstances) return;
 
-                // Intentar Login Anónimo (recomendado para reglas de seguridad)
-                window.firebase.auth().signInAnonymously().catch((error) => {
-                    console.log("Aviso: Auth anónima falló o no está habilitada. Se intentará leer igual.", error);
-                });
+                const { onSnapshot } = window.FirebaseSDK;
+                const docRef = getDocRef();
 
-                const database = window.firebase.firestore();
-                // Ruta exacta y corregida a tu base de datos
-                const docReference = database.collection('erp_data').doc('empresa_principal');
-                setDbRef(docReference);
+                if (!docRef) return;
 
-                const unsub = docReference.onSnapshot(snap => {
-                    if(snap.exists && !snap.metadata.hasPendingWrites) {
+                const unsub = onSnapshot(docRef, snap => {
+                    if(snap.exists()) {
                         const d = snap.data();
                         if(d.monthly) setMonthlyData(getSafeMonthlyData(d.monthly));
                         if(d.dailySales) setDailySales(getSafeDailySales(d.dailySales));
                         if(d.dailyExpenses) setDailyExpenses(getSafeDailyExpenses(d.dailyExpenses));
                         setSyncStatus('synced');
                         setIsLoaded(true);
-                    } else if (!snap.exists) {
+                    } else {
                         setSyncStatus('synced');
                         setIsLoaded(true);
                     }
@@ -235,25 +329,29 @@
                         setSyncStatus('permission_denied');
                     } else {
                         setSyncStatus('offline');
-                        setModalInfo({ title: "Error de conexión", message: "No se pudo conectar a la Nube. Revisa tu conexión a internet." });
                     }
                     setIsLoaded(true);
                 });
 
                 return () => unsub();
-            }, []);
+            }, [user, firebaseInstances]);
 
-            // 2. SISTEMA DE AUTOGUARDADO (Debounce de 1.5 segundos)
+            // 5. SISTEMA DE AUTOGUARDADO (Debounce de 1.5 segundos)
             useEffect(() => {
-                if (IS_CEO_MODE || !isLoaded || !dbRef || syncStatus !== 'unsaved') return;
+                if (IS_CEO_MODE || !isLoaded || !user || !firebaseInstances || syncStatus !== 'unsaved') return;
 
                 const timer = setTimeout(() => {
                     setSyncStatus('saving');
-                    dbRef.set({
+                    const { setDoc, serverTimestamp } = window.FirebaseSDK;
+                    const docRef = getDocRef();
+                    
+                    if (!docRef) return;
+
+                    setDoc(docRef, {
                         monthly: monthlyData,
                         dailySales: dailySales,
                         dailyExpenses: dailyExpenses,
-                        updatedAt: window.firebase.firestore.FieldValue.serverTimestamp()
+                        updatedAt: serverTimestamp()
                     }, { merge: true })
                     .then(() => {
                         setSyncStatus('synced');
@@ -269,8 +367,7 @@
                 }, 1500);
 
                 return () => clearTimeout(timer);
-            }, [monthlyData, dailySales, dailyExpenses, syncStatus, isLoaded, dbRef]);
-
+            }, [monthlyData, dailySales, dailyExpenses, syncStatus, isLoaded, user, firebaseInstances]);
 
             // ============================================================================
             // CALCULO CENTRAL DE DATOS
@@ -311,7 +408,6 @@
                 });
                 return data;
             }, [monthlyData, dailySales, dailyExpenses]);
-
 
             // ============================================================================
             // HANDLERS
@@ -527,21 +623,92 @@
             const formatMillions = (value) => value === 0 ? "$0" : `$${(value/1000000).toFixed(1)}M`;
             const customTooltipStyle = { backgroundColor: 'rgba(255, 255, 255, 0.95)', border: '1px solid #e2e8f0', borderRadius: '8px', color: '#1e293b', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)', padding: '12px', fontWeight: 'bold' };
 
-            if (!isLoaded) return <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white font-bold text-xl">Conectando a tu base de datos...</div>;
+            const annualBranchTotals = useMemo(() => BRANCHES.map((name, idx) => ({
+                name, venta: MONTHS.reduce((sum, m) => sum + fullYearData[m][idx].venta, 0), ganancia: MONTHS.reduce((sum, m) => sum + fullYearData[m][idx].ganancia, 0), gastosTotales: MONTHS.reduce((sum, m) => sum + fullYearData[m][idx].gastosTotales, 0)
+            })), [fullYearData]);
+
+            const pieAnualVentas = useMemo(() => annualBranchTotals.filter(d => d.venta > 0), [annualBranchTotals]);
+            const pieAnualGastos = useMemo(() => annualBranchTotals.filter(d => d.gastosTotales > 0), [annualBranchTotals]);
+
+            // =======================================================================================
+            // HANDLER DE LOGIN
+            // =======================================================================================
+            const handleLogin = (e) => {
+                e.preventDefault();
+                if (username === 'adm' && password === 'modashopargmr') {
+                    setIsAuthenticated(true);
+                    setLoginError(false);
+                } else {
+                    setLoginError(true);
+                }
+            };
+
+            // =======================================================================================
+            // RENDERIZADO (Protegido por el Loading Guard para evitar Crasheos)
+            // =======================================================================================
+            if (!isLibrariesLoaded) {
+                return (
+                    <div className="min-h-screen flex flex-col items-center justify-center bg-brand-black text-white p-6 text-center">
+                        <Icons.Activity size={80} className="animate-pulse mb-6 text-brand-magenta" />
+                        <h2 className="text-2xl font-bold text-brand-magenta mb-2">Iniciando...</h2>
+                        <p className="text-slate-400">Descargando componentes seguros.</p>
+                    </div>
+                );
+            }
+
+            if (!isAuthenticated) {
+                return (
+                    <div className="min-h-screen flex items-center justify-center bg-brand-black p-4">
+                        <div className="bg-white p-8 rounded-xl shadow-2xl max-w-sm w-full text-slate-800">
+                            <div className="text-center mb-8">
+                                <h2 className="text-3xl font-extrabold text-brand-black tracking-tight">MODA<span className="text-brand-magenta">SHOP</span></h2>
+                                <p className="text-sm text-slate-500 font-bold mt-2">Acceso al ERP Financiero</p>
+                            </div>
+                            <form onSubmit={handleLogin} className="space-y-5">
+                                <div>
+                                    <label className="block text-sm font-bold text-slate-700 mb-1">Usuario</label>
+                                    <input type="text" value={username} onChange={e => setUsername(e.target.value)} className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-magenta focus:border-brand-magenta outline-none transition-all font-semibold" placeholder="Ingrese su usuario" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-slate-700 mb-1">Contraseña</label>
+                                    <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-magenta focus:border-brand-magenta outline-none transition-all font-semibold" placeholder="••••••••" />
+                                </div>
+                                {loginError && <p className="text-rose-500 text-sm font-bold text-center bg-rose-50 p-2 rounded">Credenciales incorrectas</p>}
+                                <button type="submit" className="w-full bg-brand-magenta hover:bg-pink-600 text-white font-bold py-3 rounded-lg transition-colors mt-2 shadow-md">
+                                    Ingresar
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                );
+            }
+
+            if (!isLoaded) {
+                return (
+                    <div className="min-h-screen flex flex-col items-center justify-center bg-brand-black text-white p-6 text-center">
+                        <Icons.Activity size={80} className="animate-pulse mb-6 text-brand-magenta" />
+                        <h2 className="text-2xl font-bold text-brand-magenta mb-2">Conectando al ERP...</h2>
+                        <p className="text-slate-400">Sincronizando la base de datos de forma segura.</p>
+                    </div>
+                );
+            }
+
+            // Destructuración segura de Recharts una vez que sabemos que existe
+            const { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip: RechartsTooltip, Legend, ResponsiveContainer, LineChart, Line, ComposedChart, AreaChart, Area, ReferenceLine, Cell, PieChart, Pie } = window.Recharts;
 
             return (
                 <div className="min-h-screen text-slate-800 font-sans p-4 md:p-6 max-w-[1600px] mx-auto bg-gray-100">
                     
-                    {/* MODAL PARA ALERTAS NATIVO HTML/REACT */}
+                    {/* MODAL PARA ALERTAS */}
                     {modalInfo && (
-                        <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center z-[100] p-4">
+                        <div className="fixed inset-0 bg-brand-black/60 flex items-center justify-center z-[100] p-4">
                             <div className="bg-white rounded-xl p-6 max-w-md w-full shadow-2xl">
                                 <div className="flex justify-between items-center mb-4 border-b border-slate-100 pb-3">
                                     <h3 className="text-xl font-bold text-slate-800">{modalInfo.title}</h3>
-                                    <button onClick={() => setModalInfo(null)} className="text-slate-400 hover:text-slate-600 bg-slate-100 hover:bg-slate-200 p-1.5 rounded-lg transition-colors"><Icons.X size={20} /></button>
+                                    <button onClick={() => setModalInfo(null)} className="text-slate-400 hover:text-brand-magenta bg-slate-100 hover:bg-pink-50 p-1.5 rounded-lg transition-colors"><Icons.X size={20} /></button>
                                 </div>
                                 <p className="text-slate-600 mb-6 whitespace-pre-wrap">{modalInfo.message}</p>
-                                <button onClick={() => setModalInfo(null)} className="w-full bg-indigo-600 text-white font-bold py-2.5 rounded-lg hover:bg-indigo-700 transition-colors shadow-sm">
+                                <button onClick={() => setModalInfo(null)} className="w-full bg-brand-magenta text-white font-bold py-2.5 rounded-lg hover:bg-pink-700 transition-colors shadow-sm">
                                     Entendido
                                 </button>
                             </div>
@@ -563,16 +730,17 @@
                         </div>
                     )}
 
-                    {/* HEADER */}
+                    {/* HEADER IDENTIDAD MODASHOP */}
                     <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 p-5 rounded-xl shadow-sm border no-print bg-white border-slate-200">
                         <div>
-                            <h1 className="text-2xl font-bold flex items-center gap-2 text-slate-900">
-                                <div className="p-1.5 rounded text-white bg-blue-600">
-                                    <Icons.Activity size={24} />
+                            <h1 className="text-3xl font-extrabold flex items-center gap-3 text-brand-black tracking-tight">
+                                <div className="flex items-center gap-1">
+                                    <span className="mt-1">MODA<span className="font-medium">SHOP</span></span>
                                 </div>
-                                ERP Financiero Colaborativo
+                                <span className="text-slate-300 mx-2 font-light hidden sm:inline">|</span>
+                                <span className="text-xl font-bold text-slate-500 mt-2 hidden sm:inline">ERP Financiero</span>
                             </h1>
-                            <p className="text-sm mt-1 ml-10 text-slate-500">
+                            <p className="text-sm mt-1 text-slate-500 font-semibold">
                                 Gestión Integral Mensual y Diaria. Autoguardado activado.
                             </p>
                         </div>
@@ -581,7 +749,7 @@
                             {/* INDICADOR DE AUTO-GUARDADO */}
                             <div className={`flex items-center gap-2 px-4 py-2.5 rounded-lg font-bold shadow-sm transition-all text-sm border ${
                                     syncStatus === 'synced' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 
-                                    syncStatus === 'saving' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                                    syncStatus === 'saving' ? 'bg-pink-50 text-brand-magenta border-pink-200' :
                                     syncStatus === 'connecting' ? 'bg-amber-50 text-amber-700 border-amber-200' :
                                     syncStatus === 'permission_denied' ? 'bg-rose-50 text-rose-700 border-rose-200' :
                                     'bg-slate-100 text-slate-600 border-slate-300'
@@ -606,7 +774,7 @@
 
                             <div className="w-px h-8 bg-slate-300 mx-1 hidden sm:block"></div>
 
-                            <button onClick={exportForCEO} className="flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold shadow-md text-white bg-emerald-600 hover:bg-emerald-700 transition-all text-sm">
+                            <button onClick={exportForCEO} className="flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold shadow-md text-white bg-brand-black hover:bg-black transition-all text-sm">
                                 <Icons.Printer size={18} /> Exportar PDF (CEO)
                             </button>
                         </div>
@@ -616,7 +784,7 @@
                     <div className="mb-6 no-print">
                         <div className="flex flex-wrap gap-2 pb-2">
                             <button onClick={() => setSelectedMonth('Resumen Ejecutivo')} className={`px-6 py-3 rounded-lg font-bold text-sm border-2 transition-all flex items-center gap-2 cursor-pointer ${selectedMonth === 'Resumen Ejecutivo' ? 'tab-executive shadow-lg' : 'tab-inactive bg-slate-800 text-slate-300 border-slate-700'}`}>
-                                <Icons.Globe size={16} className={selectedMonth === 'Resumen Ejecutivo' ? 'text-indigo-300' : 'text-slate-400'}/> RESUMEN EJECUTIVO
+                                <Icons.Globe size={16} className={selectedMonth === 'Resumen Ejecutivo' ? 'text-brand-magenta' : 'text-slate-400'}/> RESUMEN EJECUTIVO
                             </button>
                             <button onClick={() => setSelectedMonth('Ventas Diarias')} className={`px-6 py-3 rounded-lg font-bold text-sm border-2 transition-all flex items-center gap-2 cursor-pointer ${selectedMonth === 'Ventas Diarias' ? 'tab-daily shadow-lg' : 'tab-inactive'}`}>
                                 <Icons.ShoppingBag size={16} /> VENTAS DIARIAS
@@ -632,12 +800,12 @@
                                     const isActive = selectedMonth === month;
                                     const hasDailyDriven = effectiveData[month]?._isDailyDriven;
                                     let btnClass = "px-4 py-2 rounded-lg font-bold text-sm border transition-all flex items-center gap-1.5 cursor-pointer ";
-                                    if (isActive && IS_CEO_MODE) btnClass += "bg-indigo-600 text-white border-indigo-600 shadow-md";
-                                    else if (isActive && !IS_CEO_MODE) btnClass += "tab-active border-blue-600";
+                                    if (isActive && IS_CEO_MODE) btnClass += "bg-brand-black text-white border-brand-black shadow-md";
+                                    else if (isActive && !IS_CEO_MODE) btnClass += "tab-active";
                                     else btnClass += "tab-inactive";
                                     return (
                                         <button key={month} onClick={() => setSelectedMonth(month)} className={btnClass}>
-                                            {IS_CEO_MODE ? <Icons.Lock size={12} className={isActive ? 'text-indigo-200' : 'text-slate-400'}/> : (hasDailyDriven ? <Icons.Zap size={12} className={isActive ? 'text-amber-300' : 'text-amber-500'}/> : <Icons.Unlock size={12} className={isActive ? 'text-blue-200' : 'text-blue-500'}/>)}
+                                            {IS_CEO_MODE ? <Icons.Lock size={12} className={isActive ? 'text-pink-200' : 'text-slate-400'}/> : (hasDailyDriven ? <Icons.Zap size={12} className={isActive ? 'text-amber-300' : 'text-amber-500'}/> : <Icons.Unlock size={12} className={isActive ? 'text-pink-200' : 'text-brand-magenta'}/>)}
                                             {month.substring(0,3)}
                                         </button>
                                     );
@@ -740,7 +908,7 @@
                                             <th className="px-3 py-3 font-bold text-right">G. Fijos</th>
                                             <th className="px-3 py-3 font-bold text-right">G. Variables</th>
                                             <th className="px-3 py-3 font-bold text-right text-rose-700">C. Ocultos</th>
-                                            <th className="px-3 py-3 font-bold text-right text-indigo-700">Gasto CEO</th>
+                                            <th className="px-3 py-3 font-bold text-right text-brand-black">Gasto CEO</th>
                                             <th className="px-3 py-3 font-bold text-center">Acción</th>
                                         </tr>
                                     </thead>
@@ -767,8 +935,8 @@
                                                     <td className="px-2 py-1 bg-rose-50/20">
                                                         <CurrencyInput disabled={IS_CEO_MODE} value={exp.ocultos} onChange={(val) => updateExpenseRow(exp.id, 'ocultos', val)} className="w-full text-right p-2 font-bold text-rose-800 border border-rose-300 bg-rose-50 rounded" />
                                                     </td>
-                                                    <td className="px-2 py-1 bg-indigo-50/20">
-                                                        <CurrencyInput disabled={IS_CEO_MODE} value={exp.ceo} onChange={(val) => updateExpenseRow(exp.id, 'ceo', val)} className="w-full text-right p-2 font-bold text-indigo-800 border border-indigo-300 bg-indigo-50 rounded" />
+                                                    <td className="px-2 py-1 bg-slate-100/50">
+                                                        <CurrencyInput disabled={IS_CEO_MODE} value={exp.ceo} onChange={(val) => updateExpenseRow(exp.id, 'ceo', val)} className="w-full text-right p-2 font-bold text-brand-black border border-slate-300 bg-white rounded" />
                                                     </td>
                                                     <td className="px-2 py-1 text-center">
                                                         {!IS_CEO_MODE && <button onClick={() => removeExpenseRow(exp.id)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg"><Icons.Trash size={18} /></button>}
@@ -792,13 +960,13 @@
                     {(selectedMonth === 'Resumen Ejecutivo' || MONTHS.includes(selectedMonth)) && (
                         <div className="space-y-6">
                             {MONTHS.includes(selectedMonth) && (
-                                <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-8 page-break-inside-avoid">
-                                    <div className="px-5 py-4 border-b bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200 flex justify-between items-center no-print">
-                                        <h2 className="text-lg font-bold flex items-center gap-2 text-blue-800">
-                                            <Icons.Zap size={20} className="text-amber-500"/> Reporte de {selectedMonth}
+                                <div className="bg-white rounded-xl shadow-sm border border-brand-magenta/30 overflow-hidden mb-8 page-break-inside-avoid">
+                                    <div className="px-5 py-4 border-b bg-gradient-to-r from-pink-50 to-gray-50 border-brand-magenta/20 flex justify-between items-center no-print">
+                                        <h2 className="text-lg font-bold flex items-center gap-2 text-brand-magenta">
+                                            <Icons.Zap size={20} className="text-brand-magenta"/> Reporte de {selectedMonth}
                                         </h2>
                                         {!effectiveData[selectedMonth]._isDailyDriven && (
-                                            <button onClick={copyPreviousMonth} className="flex items-center gap-1.5 bg-white border border-blue-300 text-blue-700 hover:bg-blue-600 hover:text-white px-3 py-2 rounded-md text-sm font-bold shadow-sm">
+                                            <button onClick={copyPreviousMonth} className="flex items-center gap-1.5 bg-white border border-brand-magenta/40 text-brand-magenta hover:bg-brand-magenta hover:text-white px-3 py-2 rounded-md text-sm font-bold shadow-sm transition-colors">
                                                 <Icons.Copy size={16} /> Copiar mes anterior
                                             </button>
                                         )}
@@ -808,9 +976,9 @@
                                             <thead className="text-xs text-slate-500 uppercase bg-slate-50 border-b border-slate-200">
                                                 <tr>
                                                     <th className="px-4 py-3 font-bold">Sucursal</th>
-                                                    <th className="px-3 py-3 font-bold text-right text-blue-600">Ventas ($)</th>
+                                                    <th className="px-3 py-3 font-bold text-right text-brand-magenta">Ventas ($)</th>
                                                     <th className="px-3 py-3 font-bold text-right text-slate-400">Costo ($)</th>
-                                                    <th className="px-3 py-3 font-bold text-right">Gastos ($)</th>
+                                                    <th className="px-3 py-3 font-bold text-right text-slate-500">Gastos ($)</th>
                                                     <th className="px-3 py-3 font-bold text-right text-amber-600">% Rentab.</th>
                                                     <th className="px-4 py-3 font-bold text-right bg-slate-100">Ganancia Neta</th>
                                                 </tr>
@@ -819,10 +987,10 @@
                                                 {currentMonthData.map((branch, index) => {
                                                     const disabled = (DAILY_MONTHS.includes(selectedMonth) && effectiveData[selectedMonth]._isDailyDriven) || IS_CEO_MODE;
                                                     return (
-                                                        <tr key={branch.name} className="hover:bg-slate-50">
+                                                        <tr key={branch.name} className="hover:bg-pink-50/20">
                                                             <td className="px-4 py-3 font-bold text-slate-700">{branch.name}</td>
                                                             <td className="px-2 py-2">
-                                                                <CurrencyInput disabled={disabled} value={effectiveData[selectedMonth][index].venta} onChange={(val) => handleMonthlyChange(index, 'venta', val)} className="w-full text-right p-2 font-bold border border-slate-300 rounded focus:border-blue-500 outline-none text-blue-700" />
+                                                                <CurrencyInput disabled={disabled} value={effectiveData[selectedMonth][index].venta} onChange={(val) => handleMonthlyChange(index, 'venta', val)} className="w-full text-right p-2 font-bold border border-slate-300 rounded focus:border-brand-magenta outline-none text-brand-magenta" />
                                                             </td>
                                                             <td className="px-2 py-2">
                                                                 <CurrencyInput disabled={disabled} value={effectiveData[selectedMonth][index].costo} onChange={(val) => handleMonthlyChange(index, 'costo', val)} className="w-full text-right p-2 font-medium border border-slate-300 rounded outline-none" />
@@ -845,41 +1013,41 @@
                                 </div>
                             )}
 
-                            <div className="bg-slate-900 p-6 md:p-8 rounded-xl shadow-lg text-white">
-                                <div className="flex items-center gap-3 mb-8 border-b border-slate-700 pb-4">
-                                    <div className="p-2 bg-indigo-600 rounded-lg"><Icons.Globe size={24} /></div>
+                            <div className="bg-brand-black p-6 md:p-8 rounded-xl shadow-lg text-white">
+                                <div className="flex items-center gap-3 mb-8 border-b border-[#333333] pb-4">
+                                    <div className="p-2 bg-brand-magenta rounded-lg"><Icons.Globe size={24} /></div>
                                     <div>
                                         <h3 className="text-2xl font-extrabold text-white">Impacto Anual 2026</h3>
                                         <p className="text-sm text-slate-400">Estado de resultados acumulado global</p>
                                     </div>
                                 </div>
                                 <div className="grid md:grid-cols-2 gap-8">
-                                    <div className="bg-slate-800 rounded-xl border border-slate-700 p-6 space-y-4">
+                                    <div className="bg-[#1f1f1f] rounded-xl border border-[#333333] p-6 space-y-4">
                                         <div className="flex justify-between font-bold text-slate-300">
                                             <span>(+) Ventas Netas Anuales</span><span className="text-xl">{formatCurrency(yearlyTotals.venta)}</span>
                                         </div>
                                         <div className="flex justify-between text-slate-400">
                                             <span>(-) Costos Directos Totales</span><span>{formatCurrency(yearlyTotals.costo)}</span>
                                         </div>
-                                        <div className="flex justify-between font-bold text-indigo-400 border-t border-slate-600 pt-3">
+                                        <div className="flex justify-between font-bold text-brand-magenta border-t border-[#444444] pt-3">
                                             <span>(=) Margen Bruto Anual</span><span className="text-xl">{formatCurrency(yearlyTotals.rentabilidad)}</span>
                                         </div>
                                         <div className="flex justify-between text-slate-400 mt-2">
                                             <span>(-) Gastos Operativos</span><span>{formatCurrency(yearlyTotals.gastosTotales)}</span>
                                         </div>
-                                        <div className={`flex justify-between font-black text-2xl border-t-2 border-slate-500 pt-4 mt-2 ${yearlyTotals.ganancia >= 0 ? 'text-emerald-400' : 'text-rose-500'}`}>
+                                        <div className={`flex justify-between font-black text-2xl border-t-2 border-[#555555] pt-4 mt-2 ${yearlyTotals.ganancia >= 0 ? 'text-emerald-400' : 'text-rose-500'}`}>
                                             <span>(=) Resultado Neto Anual</span><span>{formatCurrency(yearlyTotals.ganancia)}</span>
                                         </div>
                                     </div>
                                     <div className="flex flex-col gap-4">
                                         <div className="grid grid-cols-2 gap-4">
-                                            <div className="bg-slate-800 border border-slate-700 p-4 rounded-lg">
+                                            <div className="bg-[#1f1f1f] border border-[#333333] p-4 rounded-lg">
                                                 <p className="text-xs uppercase text-slate-400">Margen Bruto</p>
-                                                <p className="text-3xl font-extrabold text-indigo-400">
+                                                <p className="text-3xl font-extrabold text-brand-magenta">
                                                     {yearlyTotals.venta > 0 ? ((yearlyTotals.rentabilidad / yearlyTotals.venta) * 100).toFixed(1) : 0}%
                                                 </p>
                                             </div>
-                                            <div className="bg-slate-800 border border-slate-700 p-4 rounded-lg">
+                                            <div className="bg-[#1f1f1f] border border-[#333333] p-4 rounded-lg">
                                                 <p className="text-xs uppercase text-slate-400">Margen Neto</p>
                                                 <p className={`text-3xl font-extrabold ${yearlyTotals.ganancia >= 0 ? 'text-emerald-400' : 'text-rose-500'}`}>
                                                     {yearlyTotals.venta > 0 ? ((yearlyTotals.ganancia / yearlyTotals.venta) * 100).toFixed(1) : 0}%
@@ -897,8 +1065,8 @@
                                         <ComposedChart data={annualData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }} isAnimationActive={false}>
                                             <defs>
                                                 <linearGradient id="colorVentasGlobal" x1="0" y1="0" x2="0" y2="1">
-                                                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.4}/>
-                                                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                                                    <stop offset="5%" stopColor="#EC008C" stopOpacity={0.4}/>
+                                                    <stop offset="95%" stopColor="#EC008C" stopOpacity={0}/>
                                                 </linearGradient>
                                             </defs>
                                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -906,13 +1074,50 @@
                                             <YAxis tickFormatter={formatMillions} tick={{fill: '#94a3b8', fontSize: 12}} />
                                             <RechartsTooltip formatter={(value) => formatCurrency(value)} contentStyle={customTooltipStyle} />
                                             <Legend wrapperStyle={{fontSize: 12, paddingTop: '10px'}} />
-                                            <Area type="monotone" dataKey="Ventas" fill="url(#colorVentasGlobal)" stroke="#3b82f6" strokeWidth={3} name="Ventas Netas" />
+                                            <Area type="monotone" dataKey="Ventas" fill="url(#colorVentasGlobal)" stroke="#EC008C" strokeWidth={3} name="Ventas Netas" />
                                             <Line type="monotone" dataKey="Ganancia" stroke="#10b981" strokeWidth={4} name="Ganancia Neta" />
                                             <Line type="stepAfter" dataKey="PuntoEquilibrio" stroke="#ef4444" strokeWidth={2} name="Punto de Eq. Total" strokeDasharray="5 5" />
                                         </ComposedChart>
                                     </ResponsiveContainer>
                                 </div>
                             </div>
+                            
+                            {/* GRÁFICOS DE COMPOSICIÓN (Solo en Resumen Ejecutivo) */}
+                            {selectedMonth === 'Resumen Ejecutivo' && (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 page-break-inside-avoid">
+                                    <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                                        <h3 className="text-sm font-bold text-slate-800 mb-1">Composición de Ventas Anual</h3>
+                                        <div className="w-full h-[220px]">
+                                            {pieAnualVentas.length > 0 ? (
+                                                <ResponsiveContainer width="100%" height="100%">
+                                                    <PieChart isAnimationActive={false}>
+                                                        <Pie data={pieAnualVentas} cx="50%" cy="50%" innerRadius={0} outerRadius={70} dataKey="venta" nameKey="name" label={({name, percent}) => percent > 0.05 ? `${name} ${(percent * 100).toFixed(0)}%` : ''} labelLine={true}>
+                                                            {pieAnualVentas.map((entry, index) => <Cell key={`cell-${index}`} fill={PIE_COLORS[BRANCHES.indexOf(entry.name) % PIE_COLORS.length]} />)}
+                                                        </Pie>
+                                                        <RechartsTooltip formatter={(value) => formatCurrency(value)} contentStyle={customTooltipStyle} />
+                                                    </PieChart>
+                                                </ResponsiveContainer>
+                                            ) : <div className="flex items-center justify-center h-full text-slate-400">Sin datos</div>}
+                                        </div>
+                                    </div>
+                                    <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                                        <h3 className="text-sm font-bold text-slate-800 mb-1">Composición de Gastos Anual</h3>
+                                        <div className="w-full h-[220px]">
+                                            {pieAnualGastos.length > 0 ? (
+                                                <ResponsiveContainer width="100%" height="100%">
+                                                    <PieChart isAnimationActive={false}>
+                                                        <Pie data={pieAnualGastos} cx="50%" cy="50%" innerRadius={0} outerRadius={70} dataKey="gastosTotales" nameKey="name" label={({name, percent}) => percent > 0.05 ? `${name} ${(percent * 100).toFixed(0)}%` : ''} labelLine={true}>
+                                                            {pieAnualGastos.map((entry, index) => <Cell key={`cell-${index}`} fill={PIE_COLORS[BRANCHES.indexOf(entry.name) % PIE_COLORS.length]} />)}
+                                                        </Pie>
+                                                        <RechartsTooltip formatter={(value) => formatCurrency(value)} contentStyle={customTooltipStyle} />
+                                                    </PieChart>
+                                                </ResponsiveContainer>
+                                            ) : <div className="flex items-center justify-center h-full text-slate-400">Sin datos</div>}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
                         </div>
                     )}
                 </div>
