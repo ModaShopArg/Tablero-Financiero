@@ -81,7 +81,7 @@
         };
 
         const CEO_DATA_SNAPSHOT = null; 
-        const IS_CEO_MODE = true; // ACTIVADO PERMANENTEMENTE PARA ESTA VERSIÓN ONLINE
+        const IS_CEO_MODE = CEO_DATA_SNAPSHOT !== null; // Se activa solo si es el reporte PDF exportado
 
         const CurrencyInput = ({ value, onChange, disabled, className, title }) => {
             const [isFocused, setIsFocused] = useState(false);
@@ -119,6 +119,12 @@
         ];
 
         // FUNCIONES SEGURAS DE MEMORIA
+        const getSafeLockedMonths = (parsed) => {
+            let valid = {};
+            MONTHS.forEach(m => valid[m] = !!(parsed && parsed[m]));
+            return valid;
+        };
+
         const getSafeMonthlyData = (parsed) => {
             let valid = {};
             MONTHS.forEach(m => {
@@ -165,7 +171,7 @@
         function App() {
             const fileInputRef = useRef(null);
             
-            // -- ESTADO DE AUTENTICACIÓN (NUEVO) --
+            // -- ESTADO DE AUTENTICACIÓN --
             const [isAuthenticated, setIsAuthenticated] = useState(false);
             const [loginUser, setLoginUser] = useState("");
             const [loginPass, setLoginPass] = useState("");
@@ -188,6 +194,7 @@
             const [monthlyData, setMonthlyData] = useState(() => getSafeMonthlyData(null));
             const [dailySales, setDailySales] = useState(() => getSafeDailySales(null));
             const [dailyExpenses, setDailyExpenses] = useState(() => getSafeDailyExpenses(null));
+            const [lockedMonths, setLockedMonths] = useState(() => getSafeLockedMonths(null));
             
             // -- ESTADOS DE UI --
             const [selectedMonth, setSelectedMonth] = useState('Resumen Ejecutivo');
@@ -199,12 +206,12 @@
 
             // 1. GESTIÓN DE CONFIGURACIÓN Y CARGA INICIAL (Conectado Directo)
             useEffect(() => {
-                // ESTA LÍNEA FUE MODIFICADA: Ahora SÍ se conecta a Firebase en Modo CEO
                 if (IS_CEO_MODE && CEO_DATA_SNAPSHOT !== null) {
                     if (CEO_DATA_SNAPSHOT?.monthly) {
                         setMonthlyData(getSafeMonthlyData(CEO_DATA_SNAPSHOT.monthly));
                         setDailySales(getSafeDailySales(CEO_DATA_SNAPSHOT.dailySales));
                         setDailyExpenses(getSafeDailyExpenses(CEO_DATA_SNAPSHOT.dailyExpenses));
+                        if (CEO_DATA_SNAPSHOT.lockedMonths) setLockedMonths(getSafeLockedMonths(CEO_DATA_SNAPSHOT.lockedMonths));
                     } else {
                         setMonthlyData(getSafeMonthlyData(CEO_DATA_SNAPSHOT));
                     }
@@ -224,6 +231,7 @@
                         if(d.monthly) setMonthlyData(getSafeMonthlyData(d.monthly));
                         if(d.dailySales) setDailySales(getSafeDailySales(d.dailySales));
                         if(d.dailyExpenses) setDailyExpenses(getSafeDailyExpenses(d.dailyExpenses));
+                        if(d.lockedMonths) setLockedMonths(getSafeLockedMonths(d.lockedMonths));
                         setSyncStatus('synced');
                         setIsLoaded(true);
                     } else if (!snap.exists) {
@@ -252,6 +260,7 @@
                     monthly: monthlyData,
                     dailySales: dailySales,
                     dailyExpenses: dailyExpenses,
+                    lockedMonths: lockedMonths,
                     updatedAt: window.firebase.firestore.FieldValue.serverTimestamp()
                 }).then(() => {
                     setSyncStatus('synced');
@@ -269,7 +278,7 @@
             // EXPORTACIONES JSON / CARGA MANUAL
             const exportJSON = () => {
                 if (IS_CEO_MODE) return;
-                const dataStr = JSON.stringify({ monthly: monthlyData, dailySales, dailyExpenses });
+                const dataStr = JSON.stringify({ monthly: monthlyData, dailySales, dailyExpenses, lockedMonths });
                 const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
                 const exportFileDefaultName = `Backup_ERP_Financiero_${new Date().toISOString().slice(0,10)}.json`;
                 const linkElement = document.createElement('a');
@@ -288,6 +297,7 @@
                         setMonthlyData(getSafeMonthlyData(parsed.monthly));
                         setDailySales(getSafeDailySales(parsed.dailySales));
                         setDailyExpenses(getSafeDailyExpenses(parsed.dailyExpenses));
+                        if (parsed.lockedMonths) setLockedMonths(getSafeLockedMonths(parsed.lockedMonths));
                         if(syncStatus !== 'permission_denied') setSyncStatus('unsaved');
                         alert("✅ Datos cargados exitosamente.");
                     } catch (error) {
@@ -344,8 +354,17 @@
             // ============================================================================
             const markUnsaved = () => { if(syncStatus !== 'permission_denied') setSyncStatus('unsaved'); };
 
+            const toggleMonthLock = (monthToToggle) => {
+                if (IS_CEO_MODE) return;
+                markUnsaved();
+                setLockedMonths(prev => ({
+                    ...prev,
+                    [monthToToggle]: !prev[monthToToggle]
+                }));
+            };
+
             const handleMonthlyChange = (branchIndex, field, value) => {
-                if (IS_CEO_MODE) return; 
+                if (IS_CEO_MODE || lockedMonths[selectedMonth]) return; 
                 markUnsaved();
                 const numValue = value === '' ? '' : parseFloat(value);
                 const newData = JSON.parse(JSON.stringify(monthlyData));
@@ -369,7 +388,7 @@
             };
 
             const addSaleRow = () => {
-                if (IS_CEO_MODE) return;
+                if (IS_CEO_MODE || lockedMonths[salesMonth]) return;
                 markUnsaved();
                 const newDaily = JSON.parse(JSON.stringify(dailySales));
                 newDaily[salesMonth][salesBranch].push({ id: Date.now().toString(), day: '', concept: '', amount: '' });
@@ -377,7 +396,7 @@
             };
 
             const updateSaleRow = (id, field, value) => {
-                if (IS_CEO_MODE) return;
+                if (IS_CEO_MODE || lockedMonths[salesMonth]) return;
                 markUnsaved();
                 const newDaily = JSON.parse(JSON.stringify(dailySales));
                 const index = newDaily[salesMonth][salesBranch].findIndex(s => s.id === id);
@@ -389,7 +408,7 @@
             };
 
             const removeSaleRow = (id) => {
-                if (IS_CEO_MODE) return;
+                if (IS_CEO_MODE || lockedMonths[salesMonth]) return;
                 markUnsaved();
                 const newDaily = JSON.parse(JSON.stringify(dailySales));
                 newDaily[salesMonth][salesBranch] = newDaily[salesMonth][salesBranch].filter(s => s.id !== id);
@@ -397,7 +416,7 @@
             };
 
             const addExpenseRow = () => {
-                if (IS_CEO_MODE) return;
+                if (IS_CEO_MODE || lockedMonths[expensesMonth]) return;
                 markUnsaved();
                 const newDaily = JSON.parse(JSON.stringify(dailyExpenses));
                 newDaily[expensesMonth][expensesBranch].push({ 
@@ -407,7 +426,7 @@
             };
 
             const updateExpenseRow = (id, field, value) => {
-                if (IS_CEO_MODE) return;
+                if (IS_CEO_MODE || lockedMonths[expensesMonth]) return;
                 markUnsaved();
                 const newDaily = JSON.parse(JSON.stringify(dailyExpenses));
                 const index = newDaily[expensesMonth][expensesBranch].findIndex(e => e.id === id);
@@ -422,7 +441,7 @@
             };
 
             const removeExpenseRow = (id) => {
-                if (IS_CEO_MODE) return;
+                if (IS_CEO_MODE || lockedMonths[expensesMonth]) return;
                 markUnsaved();
                 const newDaily = JSON.parse(JSON.stringify(dailyExpenses));
                 newDaily[expensesMonth][expensesBranch] = newDaily[expensesMonth][expensesBranch].filter(e => e.id !== id);
@@ -430,7 +449,7 @@
             };
 
             const copyPreviousMonth = () => {
-                if (IS_CEO_MODE) return;
+                if (IS_CEO_MODE || lockedMonths[selectedMonth]) return;
                 markUnsaved();
                 const currentIndex = MONTHS.indexOf(selectedMonth);
                 if (currentIndex > 0) {
@@ -455,7 +474,7 @@
                     if (script.innerHTML.includes('const CEO_DATA_SNAPSHOT = null;')) {
                         script.innerHTML = script.innerHTML.replace(
                             'const CEO_DATA_SNAPSHOT = null;',
-                            `const CEO_DATA_SNAPSHOT = ${JSON.stringify({ monthly: monthlyData, dailySales, dailyExpenses })};`
+                            `const CEO_DATA_SNAPSHOT = ${JSON.stringify({ monthly: monthlyData, dailySales, dailyExpenses, lockedMonths })};`
                         );
                     }
                 });
@@ -580,7 +599,7 @@
             const customTooltipStyle = { backgroundColor: 'rgba(255, 255, 255, 0.95)', border: '1px solid #e2e8f0', borderRadius: '8px', color: '#1e293b', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)', padding: '12px', fontWeight: 'bold' };
 
             // ============================================================================
-            // NUEVO: PANTALLA DE LOGIN
+            // MANEJO DE LOGIN
             // ============================================================================
             const handleLogin = (e) => {
                 e.preventDefault();
@@ -592,6 +611,7 @@
                 }
             };
 
+            // --- RENDERIZADO DEL LOGIN ---
             if (!isAuthenticated) {
                 return (
                     <div className="min-h-screen flex items-center justify-center bg-slate-900 text-slate-800 font-sans p-4">
@@ -638,6 +658,7 @@
 
             if (!isLoaded) return <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white font-bold">Cargando Tablero...</div>;
 
+            // --- RENDERIZADO DEL APP ---
             return (
                 <div className="min-h-screen text-slate-800 font-sans p-4 md:p-6 max-w-[1600px] mx-auto bg-gray-100">
                     
@@ -749,6 +770,7 @@
                                 {MONTHS.map(month => {
                                     const isActive = selectedMonth === month;
                                     const hasDailyDriven = effectiveData[month]?._isDailyDriven;
+                                    const isLocked = lockedMonths[month];
                                     
                                     let btnClass = "px-4 py-2 rounded-lg font-bold text-sm border transition-all flex items-center gap-1.5 cursor-pointer ";
                                     if (isActive && IS_CEO_MODE) btnClass += "bg-indigo-600 text-white border-indigo-600 shadow-md";
@@ -756,8 +778,8 @@
                                     else btnClass += "tab-inactive";
 
                                     return (
-                                        <button key={month} onClick={() => setSelectedMonth(month)} className={btnClass} title={hasDailyDriven ? "Alimentado Automáticamente por el Diario" : "Carga Manual"}>
-                                            {IS_CEO_MODE ? <Icons.Lock size={12} className={isActive ? 'text-indigo-200' : 'text-slate-400'}/> : (hasDailyDriven ? <Icons.Zap size={12} className={isActive ? 'text-amber-300' : 'text-amber-500'}/> : <Icons.Unlock size={12} className={isActive ? 'text-blue-200' : 'text-blue-500'}/>)}
+                                        <button key={month} onClick={() => setSelectedMonth(month)} className={btnClass} title={isLocked ? "Mes Bloqueado" : (hasDailyDriven ? "Alimentado Automáticamente por el Diario" : "Carga Manual")}>
+                                            {IS_CEO_MODE ? <Icons.Lock size={12} className={isActive ? 'text-indigo-200' : 'text-slate-400'}/> : (isLocked ? <Icons.Lock size={12} className={isActive ? 'text-white' : 'text-rose-500'}/> : (hasDailyDriven ? <Icons.Zap size={12} className={isActive ? 'text-amber-300' : 'text-amber-500'}/> : <Icons.Unlock size={12} className={isActive ? 'text-blue-200' : 'text-blue-500'}/>))}
                                             {month.substring(0,3)}
                                         </button>
                                     );
@@ -793,6 +815,12 @@
                                             {BRANCHES.map(b => <option key={b} value={b}>{b}</option>)}
                                         </select>
                                     </div>
+                                    {!IS_CEO_MODE && (
+                                        <button onClick={() => toggleMonthLock(salesMonth)} className={`flex items-center gap-1.5 px-3 py-2 rounded-lg font-bold text-sm transition-all border ${lockedMonths[salesMonth] ? 'bg-rose-100 text-rose-700 border-rose-300 hover:bg-rose-200' : 'bg-slate-100 text-slate-600 border-slate-300 hover:bg-slate-200'}`} title={lockedMonths[salesMonth] ? "Desbloquear Mes" : "Bloquear Mes"}>
+                                            {lockedMonths[salesMonth] ? <Icons.Lock size={16}/> : <Icons.Unlock size={16}/>}
+                                            <span className="hidden sm:inline">{lockedMonths[salesMonth] ? 'Bloqueado' : 'Abierto'}</span>
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                             
@@ -812,56 +840,64 @@
                                                 <td colSpan="4" className="px-4 py-8 text-center text-slate-400 font-medium">Aún no hay ventas registradas en {salesBranch} para {salesMonth}. Haz clic en "+ Agregar Fila".</td>
                                             </tr>
                                         ) : (
-                                            dailySales[salesMonth][salesBranch].map(sale => (
-                                                <tr key={sale.id} className="hover:bg-emerald-50/30 transition-colors group">
-                                                    <td className="px-2 py-1">
-                                                        <input type="text" placeholder="Ej: 15/5" disabled={IS_CEO_MODE} value={sale.day} onChange={(e) => updateSaleRow(sale.id, 'day', e.target.value)}
-                                                            className={`w-full text-center p-2 font-bold text-slate-600 transition-all ${IS_CEO_MODE ? 'bg-transparent' : 'border border-slate-300 rounded focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 outline-none'}`} />
-                                                    </td>
-                                                    <td className="px-2 py-1">
-                                                        <input type="text" placeholder="Ej: Venta Mayorista" disabled={IS_CEO_MODE} value={sale.concept} onChange={(e) => updateSaleRow(sale.id, 'concept', e.target.value)}
-                                                            className={`w-full text-left p-2 font-medium text-slate-700 transition-all ${IS_CEO_MODE ? 'bg-transparent' : 'border border-slate-300 rounded focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 outline-none'}`} />
-                                                    </td>
-                                                    <td className="px-2 py-1">
-                                                        <CurrencyInput disabled={IS_CEO_MODE} value={sale.amount} onChange={(val) => updateSaleRow(sale.id, 'amount', val)}
-                                                            className={`w-full text-right p-2 font-bold text-emerald-800 transition-all ${IS_CEO_MODE ? 'bg-transparent' : 'border border-emerald-300 bg-emerald-50 rounded focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 outline-none'}`} />
-                                                    </td>
-                                                    <td className="px-2 py-1 text-center">
-                                                        {!IS_CEO_MODE && (
-                                                            <button onClick={() => removeSaleRow(sale.id)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Eliminar fila">
-                                                                <Icons.Trash size={18} />
-                                                            </button>
-                                                        )}
-                                                    </td>
-                                                </tr>
-                                            ))
+                                            dailySales[salesMonth][salesBranch].map(sale => {
+                                                const rowDisabled = IS_CEO_MODE || lockedMonths[salesMonth];
+                                                return (
+                                                    <tr key={sale.id} className="hover:bg-emerald-50/30 transition-colors group">
+                                                        <td className="px-2 py-1">
+                                                            <input type="text" placeholder="Ej: 15/5" disabled={rowDisabled} value={sale.day} onChange={(e) => updateSaleRow(sale.id, 'day', e.target.value)}
+                                                                className={`w-full text-center p-2 font-bold text-slate-600 transition-all ${rowDisabled ? 'bg-transparent' : 'border border-slate-300 rounded focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 outline-none'}`} />
+                                                        </td>
+                                                        <td className="px-2 py-1">
+                                                            <input type="text" placeholder="Ej: Venta Mayorista" disabled={rowDisabled} value={sale.concept} onChange={(e) => updateSaleRow(sale.id, 'concept', e.target.value)}
+                                                                className={`w-full text-left p-2 font-medium text-slate-700 transition-all ${rowDisabled ? 'bg-transparent' : 'border border-slate-300 rounded focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 outline-none'}`} />
+                                                        </td>
+                                                        <td className="px-2 py-1">
+                                                            <CurrencyInput disabled={rowDisabled} value={sale.amount} onChange={(val) => updateSaleRow(sale.id, 'amount', val)}
+                                                                className={`w-full text-right p-2 font-bold text-emerald-800 transition-all ${rowDisabled ? 'bg-transparent text-emerald-900' : 'border border-emerald-300 bg-emerald-50 rounded focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 outline-none'}`} />
+                                                        </td>
+                                                        <td className="px-2 py-1 text-center">
+                                                            {!rowDisabled && (
+                                                                <button onClick={() => removeSaleRow(sale.id)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Eliminar fila">
+                                                                    <Icons.Trash size={18} />
+                                                                </button>
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })
                                         )}
                                     </tbody>
                                 </table>
                             </div>
                             
-                            {!IS_CEO_MODE && (
-                                <div className="p-4 border-t border-slate-200 bg-slate-50 flex flex-col sm:flex-row justify-between items-center gap-4">
+                            <div className="p-4 border-t border-slate-200 bg-slate-50 flex flex-col sm:flex-row justify-between items-center gap-4">
+                                {!IS_CEO_MODE && !lockedMonths[salesMonth] && (
                                     <button onClick={addSaleRow} className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-emerald-100 text-emerald-700 hover:bg-emerald-200 font-bold transition-colors w-full sm:w-auto justify-center">
                                         <Icons.Plus size={20} /> Agregar Fila
                                     </button>
-                                    
-                                    <div className="flex gap-4 overflow-x-auto text-sm">
-                                        <div className="bg-white px-3 py-1.5 border border-slate-200 rounded-md shadow-sm">
-                                            <span className="text-slate-500 text-xs uppercase block">Total Empresa ({salesMonth})</span>
-                                            <span className="font-bold text-slate-700">
-                                                {formatCurrency(BRANCHES.reduce((sum, b) => sum + dailySales[salesMonth][b].reduce((sSum, sale) => sSum + (Number(sale.amount)||0), 0), 0))}
-                                            </span>
-                                        </div>
-                                        <div className="bg-emerald-800 text-white px-4 py-1.5 border border-emerald-900 rounded-md shadow-sm">
-                                            <span className="text-emerald-200 text-xs uppercase block">Total Ventas ({salesBranch})</span>
-                                            <span className="font-extrabold text-lg leading-none">
-                                                {formatCurrency(dailySales[salesMonth][salesBranch].reduce((total, s) => total + (Number(s.amount)||0), 0))}
-                                            </span>
-                                        </div>
+                                )}
+                                {(IS_CEO_MODE || lockedMonths[salesMonth]) && (
+                                    <div className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-slate-200 text-slate-600 font-bold w-full sm:w-auto justify-center">
+                                        <Icons.Lock size={18} /> Registros Bloqueados
+                                    </div>
+                                )}
+                                
+                                <div className="flex gap-4 overflow-x-auto text-sm">
+                                    <div className="bg-white px-3 py-1.5 border border-slate-200 rounded-md shadow-sm">
+                                        <span className="text-slate-500 text-xs uppercase block">Total Empresa ({salesMonth})</span>
+                                        <span className="font-bold text-slate-700">
+                                            {formatCurrency(BRANCHES.reduce((sum, b) => sum + dailySales[salesMonth][b].reduce((sSum, sale) => sSum + (Number(sale.amount)||0), 0), 0))}
+                                        </span>
+                                    </div>
+                                    <div className="bg-emerald-800 text-white px-4 py-1.5 border border-emerald-900 rounded-md shadow-sm">
+                                        <span className="text-emerald-200 text-xs uppercase block">Total Ventas ({salesBranch})</span>
+                                        <span className="font-extrabold text-lg leading-none">
+                                            {formatCurrency(dailySales[salesMonth][salesBranch].reduce((total, s) => total + (Number(s.amount)||0), 0))}
+                                        </span>
                                     </div>
                                 </div>
-                            )}
+                            </div>
                         </div>
                     )}
 
@@ -891,6 +927,12 @@
                                             {BRANCHES.map(b => <option key={b} value={b}>{b}</option>)}
                                         </select>
                                     </div>
+                                    {!IS_CEO_MODE && (
+                                        <button onClick={() => toggleMonthLock(expensesMonth)} className={`flex items-center gap-1.5 px-3 py-2 rounded-lg font-bold text-sm transition-all border ${lockedMonths[expensesMonth] ? 'bg-rose-100 text-rose-700 border-rose-300 hover:bg-rose-200' : 'bg-slate-100 text-slate-600 border-slate-300 hover:bg-slate-200'}`} title={lockedMonths[expensesMonth] ? "Desbloquear Mes" : "Bloquear Mes"}>
+                                            {lockedMonths[expensesMonth] ? <Icons.Lock size={16}/> : <Icons.Unlock size={16}/>}
+                                            <span className="hidden sm:inline">{lockedMonths[expensesMonth] ? 'Bloqueado' : 'Abierto'}</span>
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                             
@@ -916,32 +958,33 @@
                                         ) : (
                                             dailyExpenses[expensesMonth][expensesBranch].map(exp => {
                                                 const totalFila = (Number(exp.fijos)||0) + (Number(exp.variables)||0) + (Number(exp.ocultos)||0) + (Number(exp.ceo)||0);
+                                                const rowDisabled = IS_CEO_MODE || lockedMonths[expensesMonth];
                                                 
                                                 return (
                                                     <tr key={exp.id} className="hover:bg-rose-50/30 transition-colors group">
                                                         <td className="px-2 py-1">
-                                                            <input type="text" placeholder="Ej: 10/5" disabled={IS_CEO_MODE} value={exp.day} onChange={(e) => updateExpenseRow(exp.id, 'day', e.target.value)}
-                                                                className={`w-full text-center p-2 font-bold text-slate-600 transition-all ${IS_CEO_MODE ? 'bg-transparent' : 'border border-slate-300 rounded focus:border-rose-500 focus:ring-2 focus:ring-rose-200 outline-none'}`} />
+                                                            <input type="text" placeholder="Ej: 10/5" disabled={rowDisabled} value={exp.day} onChange={(e) => updateExpenseRow(exp.id, 'day', e.target.value)}
+                                                                className={`w-full text-center p-2 font-bold text-slate-600 transition-all ${rowDisabled ? 'bg-transparent' : 'border border-slate-300 rounded focus:border-rose-500 focus:ring-2 focus:ring-rose-200 outline-none'}`} />
                                                         </td>
                                                         <td className="px-2 py-1">
-                                                            <input type="text" placeholder="Ej: Alquiler" disabled={IS_CEO_MODE} value={exp.concept} onChange={(e) => updateExpenseRow(exp.id, 'concept', e.target.value)}
-                                                                className={`w-full text-left p-2 font-medium text-slate-700 transition-all ${IS_CEO_MODE ? 'bg-transparent' : 'border border-slate-300 rounded focus:border-rose-500 focus:ring-2 focus:ring-rose-200 outline-none'}`} />
+                                                            <input type="text" placeholder="Ej: Alquiler" disabled={rowDisabled} value={exp.concept} onChange={(e) => updateExpenseRow(exp.id, 'concept', e.target.value)}
+                                                                className={`w-full text-left p-2 font-medium text-slate-700 transition-all ${rowDisabled ? 'bg-transparent' : 'border border-slate-300 rounded focus:border-rose-500 focus:ring-2 focus:ring-rose-200 outline-none'}`} />
                                                         </td>
                                                         <td className="px-2 py-1">
-                                                            <CurrencyInput disabled={IS_CEO_MODE} value={exp.fijos} onChange={(val) => updateExpenseRow(exp.id, 'fijos', val)} className={`w-full text-right p-2 font-medium transition-all ${IS_CEO_MODE ? 'bg-transparent text-slate-800' : 'border border-slate-300 rounded focus:border-rose-500 focus:ring-2 focus:ring-rose-200 outline-none'}`} />
+                                                            <CurrencyInput disabled={rowDisabled} value={exp.fijos} onChange={(val) => updateExpenseRow(exp.id, 'fijos', val)} className={`w-full text-right p-2 font-medium transition-all ${rowDisabled ? 'bg-transparent text-slate-800' : 'border border-slate-300 rounded focus:border-rose-500 focus:ring-2 focus:ring-rose-200 outline-none'}`} />
                                                         </td>
                                                         <td className="px-2 py-1">
-                                                            <CurrencyInput disabled={IS_CEO_MODE} value={exp.variables} onChange={(val) => updateExpenseRow(exp.id, 'variables', val)} className={`w-full text-right p-2 font-medium transition-all ${IS_CEO_MODE ? 'bg-transparent text-slate-800' : 'border border-slate-300 rounded focus:border-rose-500 focus:ring-2 focus:ring-rose-200 outline-none'}`} />
+                                                            <CurrencyInput disabled={rowDisabled} value={exp.variables} onChange={(val) => updateExpenseRow(exp.id, 'variables', val)} className={`w-full text-right p-2 font-medium transition-all ${rowDisabled ? 'bg-transparent text-slate-800' : 'border border-slate-300 rounded focus:border-rose-500 focus:ring-2 focus:ring-rose-200 outline-none'}`} />
                                                         </td>
                                                         <td className="px-2 py-1 bg-rose-50/20">
-                                                            <CurrencyInput disabled={IS_CEO_MODE} value={exp.ocultos} onChange={(val) => updateExpenseRow(exp.id, 'ocultos', val)} className={`w-full text-right p-1.5 font-bold text-rose-800 transition-all ${IS_CEO_MODE ? 'bg-transparent' : 'border border-rose-300 bg-rose-50 rounded focus:border-rose-500 focus:ring-2 focus:ring-rose-200 outline-none'}`} />
+                                                            <CurrencyInput disabled={rowDisabled} value={exp.ocultos} onChange={(val) => updateExpenseRow(exp.id, 'ocultos', val)} className={`w-full text-right p-1.5 font-bold text-rose-800 transition-all ${rowDisabled ? 'bg-transparent text-rose-900' : 'border border-rose-300 bg-rose-50 rounded focus:border-rose-500 focus:ring-2 focus:ring-rose-200 outline-none'}`} />
                                                         </td>
                                                         <td className="px-2 py-1 bg-indigo-50/20">
-                                                            <CurrencyInput disabled={IS_CEO_MODE} value={exp.ceo} onChange={(val) => updateExpenseRow(exp.id, 'ceo', val)} className={`w-full text-right p-1.5 font-bold text-indigo-800 transition-all ${IS_CEO_MODE ? 'bg-transparent' : 'border border-indigo-300 bg-indigo-50 rounded focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none'}`} />
+                                                            <CurrencyInput disabled={rowDisabled} value={exp.ceo} onChange={(val) => updateExpenseRow(exp.id, 'ceo', val)} className={`w-full text-right p-1.5 font-bold text-indigo-800 transition-all ${rowDisabled ? 'bg-transparent text-indigo-900' : 'border border-indigo-300 bg-indigo-50 rounded focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none'}`} />
                                                         </td>
                                                         <td className="px-3 py-2 text-right bg-slate-50 font-bold text-slate-700 whitespace-nowrap">{formatCurrency(totalFila)}</td>
                                                         <td className="px-2 py-1 text-center">
-                                                            {!IS_CEO_MODE && (
+                                                            {!rowDisabled && (
                                                                 <button onClick={() => removeExpenseRow(exp.id)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Eliminar fila">
                                                                     <Icons.Trash size={18} />
                                                                 </button>
@@ -955,32 +998,37 @@
                                 </table>
                             </div>
 
-                            {!IS_CEO_MODE && (
-                                <div className="p-4 border-t border-slate-200 bg-slate-50 flex flex-col sm:flex-row justify-between items-center gap-4">
+                            <div className="p-4 border-t border-slate-200 bg-slate-50 flex flex-col sm:flex-row justify-between items-center gap-4">
+                                {!IS_CEO_MODE && !lockedMonths[expensesMonth] && (
                                     <button onClick={addExpenseRow} className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-rose-100 text-rose-700 hover:bg-rose-200 font-bold transition-colors w-full sm:w-auto justify-center">
                                         <Icons.Plus size={20} /> Agregar Fila
                                     </button>
-                                    
-                                    <div className="flex gap-4 overflow-x-auto text-sm">
-                                        {['fijos', 'variables', 'ocultos', 'ceo'].map(field => {
-                                            const totalField = dailyExpenses[expensesMonth][expensesBranch].reduce((sum, e) => sum + (Number(e[field])||0), 0);
-                                            const titles = {fijos:'Fijos', variables:'Variables', ocultos:'Ocultos', ceo:'CEO'};
-                                            return (
-                                                <div key={field} className="bg-white px-3 py-1.5 border border-slate-200 rounded-md shadow-sm">
-                                                    <span className="text-slate-500 text-xs uppercase block">{titles[field]}</span>
-                                                    <span className="font-bold text-slate-700">{formatCurrency(totalField)}</span>
-                                                </div>
-                                            );
-                                        })}
-                                        <div className="bg-rose-800 text-white px-4 py-1.5 border border-rose-900 rounded-md shadow-sm">
-                                            <span className="text-rose-200 text-xs uppercase block">Total Gastos ({expensesBranch})</span>
-                                            <span className="font-extrabold text-lg leading-none">
-                                                {formatCurrency(dailyExpenses[expensesMonth][expensesBranch].reduce((total, e) => total + (Number(e.fijos)||0) + (Number(e.variables)||0) + (Number(e.ocultos)||0) + (Number(e.ceo)||0), 0))}
-                                            </span>
-                                        </div>
+                                )}
+                                {(IS_CEO_MODE || lockedMonths[expensesMonth]) && (
+                                    <div className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-slate-200 text-slate-600 font-bold w-full sm:w-auto justify-center">
+                                        <Icons.Lock size={18} /> Registros Bloqueados
+                                    </div>
+                                )}
+                                
+                                <div className="flex gap-4 overflow-x-auto text-sm">
+                                    {['fijos', 'variables', 'ocultos', 'ceo'].map(field => {
+                                        const totalField = dailyExpenses[expensesMonth][expensesBranch].reduce((sum, e) => sum + (Number(e[field])||0), 0);
+                                        const titles = {fijos:'Fijos', variables:'Variables', ocultos:'Ocultos', ceo:'CEO'};
+                                        return (
+                                            <div key={field} className="bg-white px-3 py-1.5 border border-slate-200 rounded-md shadow-sm">
+                                                <span className="text-slate-500 text-xs uppercase block">{titles[field]}</span>
+                                                <span className="font-bold text-slate-700">{formatCurrency(totalField)}</span>
+                                            </div>
+                                        );
+                                    })}
+                                    <div className="bg-rose-800 text-white px-4 py-1.5 border border-rose-900 rounded-md shadow-sm">
+                                        <span className="text-rose-200 text-xs uppercase block">Total Gastos ({expensesBranch})</span>
+                                        <span className="font-extrabold text-lg leading-none">
+                                            {formatCurrency(dailyExpenses[expensesMonth][expensesBranch].reduce((total, e) => total + (Number(e.fijos)||0) + (Number(e.variables)||0) + (Number(e.ocultos)||0) + (Number(e.ceo)||0), 0))}
+                                        </span>
                                     </div>
                                 </div>
-                            )}
+                            </div>
                         </div>
                     )}
 
@@ -1272,20 +1320,32 @@
                                 <div className={`px-5 py-4 border-b flex flex-col md:flex-row justify-between items-start md:items-center gap-4 ${IS_CEO_MODE ? 'bg-slate-50 border-slate-200' : 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200'} no-print`}>
                                     <div className="flex flex-col gap-1">
                                         <h2 className={`text-lg font-bold flex items-center gap-2 ${IS_CEO_MODE ? 'text-slate-800' : 'text-blue-800'}`}>
-                                            {IS_CEO_MODE ? <Icons.Activity size={20} className="text-indigo-600"/> : <Icons.Zap size={20} className="text-amber-500"/>} 
+                                            {IS_CEO_MODE ? <Icons.Activity size={20} className="text-indigo-600"/> : (lockedMonths[selectedMonth] ? <Icons.Lock size={20} className="text-rose-500"/> : <Icons.Zap size={20} className="text-amber-500"/>)} 
                                             Reporte del Mes - {selectedMonth}
                                         </h2>
-                                        {DAILY_MONTHS.includes(selectedMonth) && !IS_CEO_MODE && (
-                                            effectiveData[selectedMonth]._isDailyDriven 
-                                                ? <p className="text-xs text-amber-700 font-bold bg-amber-100 px-2 py-1 rounded inline-block mt-1 w-max">⚠️ Modo Automatizado: Los datos provienen del Libro Diario y no se pueden editar aquí.</p>
-                                                : <p className="text-xs text-blue-700 font-bold bg-blue-100 px-2 py-1 rounded inline-block mt-1 w-max">✏️ Modo Manual: Puedes cargar tus datos aquí, o usar los Libros Diarios para automatizarlo.</p>
+                                        {lockedMonths[selectedMonth] && !IS_CEO_MODE ? (
+                                            <p className="text-xs text-rose-700 font-bold bg-rose-100 px-2 py-1 rounded inline-block mt-1 w-max">🔒 Mes Bloqueado: Los datos de este mes no pueden ser modificados.</p>
+                                        ) : (
+                                            DAILY_MONTHS.includes(selectedMonth) && !IS_CEO_MODE && (
+                                                effectiveData[selectedMonth]._isDailyDriven 
+                                                    ? <p className="text-xs text-amber-700 font-bold bg-amber-100 px-2 py-1 rounded inline-block mt-1 w-max">⚠️ Modo Automatizado: Los datos provienen del Libro Diario y no se pueden editar aquí.</p>
+                                                    : <p className="text-xs text-blue-700 font-bold bg-blue-100 px-2 py-1 rounded inline-block mt-1 w-max">✏️ Modo Manual: Puedes cargar tus datos aquí, o usar los Libros Diarios para automatizarlo.</p>
+                                            )
                                         )}
                                     </div>
-                                    {(!DAILY_MONTHS.includes(selectedMonth) || !effectiveData[selectedMonth]._isDailyDriven) && (
-                                        <button onClick={copyPreviousMonth} className="flex items-center gap-1.5 bg-white border border-blue-300 text-blue-700 hover:bg-blue-600 hover:text-white px-3 py-2 rounded-md text-sm font-bold transition-all shadow-sm">
-                                            <Icons.Copy size={16} /> Copiar mes anterior
-                                        </button>
-                                    )}
+                                    <div className="flex items-center gap-2">
+                                        {!IS_CEO_MODE && (
+                                            <button onClick={() => toggleMonthLock(selectedMonth)} className={`flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-bold transition-all shadow-sm border ${lockedMonths[selectedMonth] ? 'bg-rose-100 text-rose-700 hover:bg-rose-200 border-rose-300' : 'bg-white text-slate-600 hover:bg-slate-50 border-slate-300'}`}>
+                                                {lockedMonths[selectedMonth] ? <Icons.Lock size={16} /> : <Icons.Unlock size={16} />}
+                                                {lockedMonths[selectedMonth] ? 'Desbloquear' : 'Bloquear'}
+                                            </button>
+                                        )}
+                                        {(!DAILY_MONTHS.includes(selectedMonth) || !effectiveData[selectedMonth]._isDailyDriven) && !lockedMonths[selectedMonth] && (
+                                            <button onClick={copyPreviousMonth} className="flex items-center gap-1.5 bg-white border border-blue-300 text-blue-700 hover:bg-blue-600 hover:text-white px-3 py-2 rounded-md text-sm font-bold transition-all shadow-sm">
+                                                <Icons.Copy size={16} /> Copiar mes anterior
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-sm text-left">
@@ -1305,7 +1365,7 @@
                                         <tbody className="divide-y divide-slate-100">
                                             {currentMonthData.map((branch, index) => {
                                                 const isDailyAuto = DAILY_MONTHS.includes(selectedMonth) && effectiveData[selectedMonth]._isDailyDriven && !IS_CEO_MODE;
-                                                const fieldDisabled = isDailyAuto || IS_CEO_MODE;
+                                                const fieldDisabled = isDailyAuto || IS_CEO_MODE || lockedMonths[selectedMonth];
                                                 
                                                 return (
                                                     <tr key={branch.name} className="hover:bg-slate-50 transition-colors">
@@ -1502,7 +1562,7 @@
                                 </div>
                             </div>
                             
-                            {/* SALUD FINANCIERA GLOBAL 2026 AL FONDO DEL MES (COMO ESTABA ANTES) */}
+                            {/* SALUD FINANCIERA GLOBAL 2026 AL FONDO DEL MES */}
                             <div className="print-page-break mt-8">
                                 <div className="bg-slate-900 p-6 md:p-8 rounded-xl shadow-lg border border-slate-800 text-white relative overflow-hidden page-break-inside-avoid">
                                     <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none no-print">
